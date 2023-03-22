@@ -20,7 +20,7 @@ def get_logger(name="handoff"):
 def get_service_account_credentials():
     return {
         "type": environ.get("GOOGLE_APPLICATION_SERVICE_ACCOUNT_TYPE"),
-        "project_id": environ.get("GOOGLE_APPLICATION_SERVICE_ACCOUNT_PROJECT"),
+        "project_id": environ.get("GOOGLE_APPLICATION_SERVICE_ACCOUNT_PROJECT_ID"),
         "private_key_id": environ.get(
             "GOOGLE_APPLICATION_SERVICE_ACCOUNT_PRIVATE_KEY_ID"
         ),
