@@ -1,6 +1,7 @@
 import copy, datetime, json, time
 import dateutil.parser
 from decimal import Decimal
+from os import environ
 
 import singer
 import singer.metrics as metrics
@@ -40,20 +41,22 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None):
 
     if keys.get("datetime_key") and keys.get("start_datetime"):
         if inclusive_start:
-            query = (query +
-                     (" AND datetime '{start_datetime}' <= " +
-                      "CAST({datetime_key} as datetime)").format(**keys))
+            query = query + (
+                " AND datetime '{start_datetime}' <= "
+                + "CAST({datetime_key} as datetime)"
+            ).format(**keys)
         else:
-            query = (query +
-                     (" AND datetime '{start_datetime}' < " +
-                      "CAST({datetime_key} as datetime)").format(**keys))
+            query = query + (
+                " AND datetime '{start_datetime}' < "
+                + "CAST({datetime_key} as datetime)"
+            ).format(**keys)
 
     if keys.get("datetime_key") and keys.get("end_datetime"):
-        query = (query +
-                 (" AND CAST({datetime_key} as datetime) < " +
-                  "datetime '{end_datetime}'").format(**keys))
+        query = query + (
+            " AND CAST({datetime_key} as datetime) < " + "datetime '{end_datetime}'"
+        ).format(**keys)
     if keys.get("datetime_key"):
-        query = (query + " ORDER BY {datetime_key}".format(**keys))
+        query = query + " ORDER BY {datetime_key}".format(**keys)
 
     if limit is not None:
         query = query + " LIMIT %d" % limit
@@ -61,24 +64,34 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None):
     return query
 
 
-def do_discover(config, stream, output_schema_file=None,
-                add_timestamp=True):
-    client = bigquery.Client()
+def do_discover(config, stream, output_schema_file=None, add_timestamp=True):
+    # Check credentials is set as string in env-var
+    if environ.get("GOOGLE_APPLICATION_CREDENTIALS_STRING") is not None:
+        client = bigquery.Client.from_service_account_info(
+            environ.get("GOOGLE_APPLICATION_CREDENTIALS_STRING")
+        )
 
-    start_datetime = dateutil.parser.parse(
-        config.get("start_datetime")).strftime("%Y-%m-%d %H:%M:%S.%f")
+    # Fallback to default Client credentials resolving
+    else:
+        client = bigquery.Client()
+
+    start_datetime = dateutil.parser.parse(config.get("start_datetime")).strftime(
+        "%Y-%m-%d %H:%M:%S.%f"
+    )
 
     end_datetime = None
     if config.get("end_datetime"):
-        end_datetime = dateutil.parser.parse(
-            config.get("end_datetime")).strftime("%Y-%m-%d %H:%M:%S.%f")
+        end_datetime = dateutil.parser.parse(config.get("end_datetime")).strftime(
+            "%Y-%m-%d %H:%M:%S.%f"
+        )
 
-    keys = {"table": stream["table"],
-            "columns": stream["columns"],
-            "datetime_key": stream["datetime_key"],
-            "start_datetime": start_datetime,
-            "end_datetime": end_datetime
-            }
+    keys = {
+        "table": stream["table"],
+        "columns": stream["columns"],
+        "datetime_key": stream["datetime_key"],
+        "start_datetime": start_datetime,
+        "end_datetime": end_datetime,
+    }
     limit = config.get("limit", 100)
     query = _build_query(keys, stream.get("filters"), limit=limit)
 
@@ -100,42 +113,46 @@ def do_discover(config, stream, output_schema_file=None,
 
     schema = getschema.infer_schema(data)
     if add_timestamp:
-        timestamp_format = {"type": ["null", "string"],
-                            "format": "date-time"}
+        timestamp_format = {"type": ["null", "string"], "format": "date-time"}
         schema["properties"][EXTRACT_TIMESTAMP] = timestamp_format
         schema["properties"][BATCH_TIMESTAMP] = timestamp_format
         # Support the legacy field
-        schema["properties"][LEGACY_TIMESTAMP] = {"type": ["null", "number"],
-                                                  "inclusion": "automatic"}
+        schema["properties"][LEGACY_TIMESTAMP] = {
+            "type": ["null", "number"],
+            "inclusion": "automatic",
+        }
 
     if output_schema_file:
         with open(output_schema_file, "w") as f:
             json.dump(schema, f, indent=2)
 
-    stream_metadata = [{
-        "metadata": {
-            "selected": True,
-            "table": stream["table"],
-            "columns": stream["columns"],
-            "filters": stream.get("filters", []),
-            "datetime_key": stream["datetime_key"]
-            # "inclusion": "available",
-            # "table-key-properties": ["id"],
-            # "valid-replication-keys": ["date_modified"],
-            # "schema-name": "users"
+    stream_metadata = [
+        {
+            "metadata": {
+                "selected": True,
+                "table": stream["table"],
+                "columns": stream["columns"],
+                "filters": stream.get("filters", []),
+                "datetime_key": stream["datetime_key"]
+                # "inclusion": "available",
+                # "table-key-properties": ["id"],
+                # "valid-replication-keys": ["date_modified"],
+                # "schema-name": "users"
             },
-        "breadcrumb": []
-        }]
+            "breadcrumb": [],
+        }
+    ]
 
     # TODO: Need to put something in here?
     key_properties = []
 
-    catalog = {"selected": True,
-               "type": "object",
-               "stream": stream["name"],
-               "key_properties": key_properties,
-               "properties": schema["properties"]
-               }
+    catalog = {
+        "selected": True,
+        "type": "object",
+        "stream": stream["name"],
+        "key_properties": key_properties,
+        "properties": schema["properties"],
+    }
 
     return stream_metadata, key_properties, catalog
 
@@ -144,38 +161,49 @@ def do_sync(config, state, stream):
     singer.set_currently_syncing(state, stream.tap_stream_id)
     singer.write_state(state)
 
-    client = bigquery.Client()
+    # Check credentials is set as string in env-var
+    if environ.get("GOOGLE_APPLICATION_CREDENTIALS_STRING") is not None:
+        client = bigquery.Client.from_service_account_info(
+            environ.get("GOOGLE_APPLICATION_CREDENTIALS_STRING")
+        )
+
+    # Fallback to default Client credentials resolving
+    else:
+        client = bigquery.Client()
+
     metadata = stream.metadata[0]["metadata"]
     tap_stream_id = stream.tap_stream_id
 
     inclusive_start = True
-    start_datetime = singer.get_bookmark(state, tap_stream_id,
-                                         BOOKMARK_KEY_NAME)
+    start_datetime = singer.get_bookmark(state, tap_stream_id, BOOKMARK_KEY_NAME)
     if start_datetime:
         if not config.get("start_always_inclusive"):
             inclusive_start = False
     else:
         start_datetime = config.get("start_datetime")
     start_datetime = dateutil.parser.parse(start_datetime).strftime(
-            "%Y-%m-%d %H:%M:%S.%f")
+        "%Y-%m-%d %H:%M:%S.%f"
+    )
 
     if config.get("end_datetime"):
-        end_datetime = dateutil.parser.parse(
-            config.get("end_datetime")).strftime("%Y-%m-%d %H:%M:%S.%f")
+        end_datetime = dateutil.parser.parse(config.get("end_datetime")).strftime(
+            "%Y-%m-%d %H:%M:%S.%f"
+        )
 
-    singer.write_schema(tap_stream_id, stream.schema.to_dict(),
-                        stream.key_properties)
+    singer.write_schema(tap_stream_id, stream.schema.to_dict(), stream.key_properties)
 
-    keys = {"table": metadata["table"],
-            "columns": metadata["columns"],
-            "datetime_key": metadata.get("datetime_key"),
-            "start_datetime": start_datetime,
-            "end_datetime": end_datetime
-            }
+    keys = {
+        "table": metadata["table"],
+        "columns": metadata["columns"],
+        "datetime_key": metadata.get("datetime_key"),
+        "start_datetime": start_datetime,
+        "end_datetime": end_datetime,
+    }
 
     limit = config.get("limit", None)
-    query = _build_query(keys, metadata.get("filters", []), inclusive_start,
-                         limit=limit)
+    query = _build_query(
+        keys, metadata.get("filters", []), inclusive_start, limit=limit
+    )
     query_job = client.query(query)
 
     properties = stream.schema.properties
@@ -192,16 +220,12 @@ def do_sync(config, state, stream):
             for key in properties.keys():
                 prop = properties[key]
 
-                if key in [LEGACY_TIMESTAMP,
-                           EXTRACT_TIMESTAMP,
-                           BATCH_TIMESTAMP]:
+                if key in [LEGACY_TIMESTAMP, EXTRACT_TIMESTAMP, BATCH_TIMESTAMP]:
                     continue
 
                 if row[key] is None:
                     if prop.type[0] != "null":
-                        raise ValueError(
-                            "NULL value not allowed by the schema"
-                        )
+                        raise ValueError("NULL value not allowed by the schema")
                     else:
                         record[key] = None
                 elif prop.format == "date-time":
@@ -209,9 +233,8 @@ def do_sync(config, state, stream):
                         r = dateutil.parser.parse(row[key])
                     elif type(row[key]) == datetime.date:
                         r = datetime.datetime(
-                            year=row[key].year,
-                            month=row[key].month,
-                            day=row[key].day)
+                            year=row[key].year, month=row[key].month, day=row[key].day
+                        )
                     elif type(row[key]) == datetime.datetime:
                         r = row[key]
                     record[key] = r.isoformat()
@@ -234,7 +257,6 @@ def do_sync(config, state, stream):
             last_update = record[keys["datetime_key"]]
             counter.increment()
 
-    state = singer.write_bookmark(state, tap_stream_id, BOOKMARK_KEY_NAME,
-                                  last_update)
+    state = singer.write_bookmark(state, tap_stream_id, BOOKMARK_KEY_NAME, last_update)
 
     singer.write_state(state)
