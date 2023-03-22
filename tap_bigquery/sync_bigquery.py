@@ -66,9 +66,9 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None):
 
 def do_discover(config, stream, output_schema_file=None, add_timestamp=True):
     # Check credentials is set as string in env-var
-    if environ.get("GOOGLE_APPLICATION_CREDENTIALS_STRING") is not None:
+    if environ.get("GOOGLE_APPLICATION_SERVICE_ACCOUNT_TYPE") is not None:
         client = bigquery.Client.from_service_account_info(
-            environ.get("GOOGLE_APPLICATION_CREDENTIALS_STRING")
+            utils.get_service_account_credentials()
         )
 
     # Fallback to default Client credentials resolving
