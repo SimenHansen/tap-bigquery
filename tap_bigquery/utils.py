@@ -19,20 +19,8 @@ def get_logger(name="handoff"):
 
 def get_service_account_credentials():
     return {
-        "type": environ.get("GOOGLE_APPLICATION_SERVICE_ACCOUNT_TYPE"),
         "project_id": environ.get("GOOGLE_APPLICATION_SERVICE_ACCOUNT_PROJECT_ID"),
-        "private_key_id": environ.get(
-            "GOOGLE_APPLICATION_SERVICE_ACCOUNT_PRIVATE_KEY_ID"
-        ),
         "private_key": environ.get("GOOGLE_APPLICATION_SERVICE_ACCOUNT_PRIVATE_KEY"),
         "client_email": environ.get("GOOGLE_APPLICATION_SERVICE_ACCOUNT_CLIENT_EMAIL"),
-        "client_id": environ.get("GOOGLE_APPLICATION_SERVICE_ACCOUNT_CLIENT_ID"),
-        "auth_uri": environ.get("GOOGLE_APPLICATION_SERVICE_ACCOUNT_AUTH_URI"),
         "token_uri": environ.get("GOOGLE_APPLICATION_SERVICE_ACCOUNT_TOKEN_URI"),
-        "auth_provider_x509_cert_url": environ.get(
-            "GOOGLE_APPLICATION_SERVICE_ACCOUNT_AUTH_PROVIDER_X509"
-        ),
-        "client_x509_cert_url": environ.get(
-            "GOOGLE_APPLICATION_SERVICE_ACCOUNT_CLIENT_X509"
-        ),
     }
