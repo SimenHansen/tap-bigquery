@@ -24,5 +24,5 @@ def get_service_account_credentials():
             "GOOGLE_APPLICATION_SERVICE_ACCOUNT_PRIVATE_KEY"
         ).replace("\\n", "\n"),
         "client_email": environ.get("GOOGLE_APPLICATION_SERVICE_ACCOUNT_CLIENT_EMAIL"),
-        "token_uri": environ.get("GOOGLE_APPLICATION_SERVICE_ACCOUNT_TOKEN_URI"),
+        "token_uri": "https://oauth2.googleapis.com/token",
     }
